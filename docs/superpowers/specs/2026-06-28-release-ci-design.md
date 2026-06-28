@@ -94,6 +94,8 @@ push tag v*
 oven/bun 多阶段构建:
 
 ```dockerfile
+# syntax=docker/dockerfile:1
+
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
@@ -102,15 +104,19 @@ RUN bun install --frozen-lockfile
 FROM oven/bun:1-alpine
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json tsconfig.json ./
+COPY package.json tsconfig.json config.example.yaml ./
 COPY src ./src
+RUN mkdir -p /data && chown bun:bun /data
 ENV ZCODE_PROXY_PORT=8080
+ENV ZCODE_PROXY_CONFIG=/data/config.yaml
 EXPOSE 8080
 USER bun
 CMD ["bun", "run", "src/index.ts", "serve"]
 ```
 
-- 配置策略:env 变量(`ZCODE_API_KEY` 等)驱动,或运行时挂载 `/app/config.yaml`;无配置时由入口逻辑从内置模板自动生成。
+- 配置策略:env 变量(`ZCODE_API_KEY` 等)驱动,或运行时挂载 config 到 `/data/config.yaml`;无配置时由入口逻辑从内置模板写入 `/data`(因 `bun` 用户对 `/app` 只读)。
+- **必须 COPY `config.example.yaml`**:`src/config/template.ts` 以 `import ... with { type: "text" }` 引用它;解释执行(`bun run`,非编译)时该 import 在运行时从文件系统解析,缺失会导致容器启动即崩溃。
+- `/health` 等所有路由在 server 中位于 proxy-api-key 校验之后,因此**健康检查也需带 `x-api-key`**(等于 `ZCODE_PROXY_API_KEY`)。
 - 以非 root `bun` 用户运行。
 
 ### package.json 调整

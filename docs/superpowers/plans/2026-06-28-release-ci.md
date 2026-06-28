@@ -137,13 +137,17 @@ RUN bun install --frozen-lockfile
 FROM oven/bun:1-alpine
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json tsconfig.json ./
+COPY package.json tsconfig.json config.example.yaml ./
 COPY src ./src
+RUN mkdir -p /data && chown bun:bun /data
 ENV ZCODE_PROXY_PORT=8080
+ENV ZCODE_PROXY_CONFIG=/data/config.yaml
 EXPOSE 8080
 USER bun
 CMD ["bun", "run", "src/index.ts", "serve"]
 ```
+
+> 关键:必须 COPY `config.example.yaml`(`src/config/template.ts` 用 `import ... with { type: "text" }` 引用它,解释执行时运行时从文件系统解析,缺失则启动崩溃);config 写到 `/data`(非 root `bun` 用户对 `/app` 只读)。
 
 - [ ] **Step 3: 本地构建镜像(host 架构,冒烟用)**
 
@@ -156,11 +160,11 @@ Run:
 ```bash
 docker run --rm -d --name zcode-test -p 8080:8080 zcode-proxy:test
 sleep 3
-curl -fsS http://localhost:8080/health; echo
+curl -fsS -H "x-api-key: your-proxy-secret" http://localhost:8080/health; echo
 docker logs zcode-test | tail -5
 docker stop zcode-test
 ```
-Expected: `curl` 返回 health 响应(HTTP 200,非连接拒绝);日志显示服务已监听 `0.0.0.0:8080`(无配置时从模板自动生成 config 属正常)
+Expected: `curl` 返回 `{"status":"ok",...}`(HTTP 200);日志显示服务已监听 `0.0.0.0:8080`(无配置时从模板自动写入 `/data` 属正常)。注:`/health` 在 server 中位于 proxy-api-key 校验之后,故需带 `x-api-key`(= 模板默认 `your-proxy-secret`)
 
 - [ ] **Step 5: 清理测试镜像**
 
@@ -412,9 +416,11 @@ Or mount a config file:
 
 ```bash
 docker run --rm -p 8080:8080 \
-  -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+  -v "$(pwd)/config.yaml:/data/config.yaml:ro" \
   ghcr.io/greenhat616/zcode-proxy:latest
 ```
+
+> Note: `/health` and all routes sit behind the proxy-API-key check, so health probes must send `x-api-key: <ZCODE_PROXY_API_KEY>`.
 
 Common environment variables (see the Configuration table above for the full list):
 
