@@ -45,8 +45,9 @@ push tag v*
 
 ### Job: detect
 
-- 单步用正则判定预发布:`is_prerelease = (tag =~ /alpha|beta|rc/i)`。
-- 通过 `outputs.is_prerelease` 暴露给 `release` 与 `docker` job 共用,避免重复逻辑。
+- 用正则判定预发布:`is_prerelease = (tag =~ /alpha|beta|rc/i)`。
+- 同步计算 `version = tag 去掉前导 v`(如 `v2.0.6.alpha` → `2.0.6.alpha`)。
+- 通过 `outputs.is_prerelease` 与 `outputs.version` 暴露给 `release` 与 `docker` job 共用,避免重复逻辑。
 - 输入:`github.ref_name`(tag 名)。
 
 ### Job: build-binaries
@@ -83,9 +84,10 @@ push tag v*
 - 步骤:`actions/checkout` → `docker/setup-qemu-action`(arm64 仿真)→ `docker/setup-buildx-action` → `docker/login-action`(`ghcr.io`,用 `GITHUB_TOKEN`)→ `docker/metadata-action` → `docker/build-push-action`:
   - `platforms: linux/amd64,linux/arm64`
   - tags(由 metadata-action 生成):
-    - `type=semver,pattern={{version}}`(始终,如 `2.0.6`)
+    - `type=raw,value=${{ needs.detect.outputs.version }}`(始终,如 `2.0.6` / `2.0.6.alpha`)
     - `type=raw,value=latest,enable=${{ needs.detect.outputs.is_prerelease == 'false' }}`(仅正式版)
   - `flavor: latest=false`(显式关闭默认 latest,由上面的 raw 规则控制)
+  - 说明:不用 `type=semver`,因上游预发布 tag 为点分隔(`v2.0.5.alpha`),非合法 semver 会解析失败。
 
 ### Dockerfile(仓库根目录)
 
