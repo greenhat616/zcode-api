@@ -2,11 +2,8 @@
  * Pinned model catalog for GLM coding plan.
  *
  * Hardcoded to the exact models available on the Z.AI / Bigmodel coding-plan
- * tier. This replaces the previous `_reverse/models_catalog.json` import,
- * removing that runtime dependency. Update this list when new GLM models are
- * released or specs change.
- *
- * @see .omo/plans/zcode-proxy.md Task 3
+ * tier. Regenerate with `bun run update-models` (see scripts/update-models.ts);
+ * verify specs (contextWindow / reasoning) of newly added entries by hand.
  */
 import type { ModelDef } from "./types.js";
 

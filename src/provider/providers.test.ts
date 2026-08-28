@@ -37,13 +37,15 @@ describe("providers", () => {
 });
 
 describe("models", () => {
-  it("MODELS contains exactly the 10 pinned coding-plan models", () => {
-    expect(MODELS).toHaveLength(10);
+  it("MODELS contains the pinned coding-plan baseline", () => {
     const ids = MODELS.map((m) => m.id);
-    expect(ids).toEqual([
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const baseline of [
       "glm-4.5-air", "glm-4.6", "glm-4.6v", "glm-4.7",
       "glm-5", "glm-5-turbo", "glm-5v-turbo", "glm-5.1", "glm-5.2", "glm-5.3",
-    ]);
+    ]) {
+      expect(ids).toContain(baseline);
+    }
   });
 
   it("all models have valid id and contextWindow", () => {
@@ -55,10 +57,11 @@ describe("models", () => {
     }
   });
 
-  it("all models except glm-5.2/glm-5.3 have 200k context", () => {
-    for (const m of MODELS) {
-      if (m.id === "glm-5.2" || m.id === "glm-5.3") continue;
-      expect(m.contextWindow).toBe(200_000);
+  it("baseline 200k models keep 200k context", () => {
+    for (const id of ["glm-4.5-air", "glm-4.6", "glm-4.6v", "glm-4.7", "glm-5", "glm-5-turbo", "glm-5v-turbo", "glm-5.1"]) {
+      const m = MODELS.find((x) => x.id === id);
+      expect(m, id).toBeDefined();
+      expect(m!.contextWindow, id).toBe(200_000);
     }
   });
 
