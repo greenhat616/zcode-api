@@ -32,14 +32,20 @@ export const MODELS: ModelDef[] = [
   { id: "glm-5.1", name: "GLM 5.1", contextWindow: 200_000, maxOutputTokens: 64_000, reasoning: true },
   { id: "glm-5.2", name: "GLM 5.2", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoning: true },
   { id: "glm-5.3", name: "GLM 5.3", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoning: true },
-  // Confirmed available (repo owner + local ZCode entitlement
-  // ent_wk_0828_glm_5p3f, capabilities: ["model:glm-5.3-flash"]) but absent
-  // from ZCode's stale v1 catalog snapshot, so contextWindow/maxOutputTokens
-  // below are conservative placeholders, NOT catalog-sourced — the observed
-  // gateway max_tokens ceiling is 131_072. Confirmed a reasoning model (183
-  // chars of thinking by default; effort:"low" or thinking:{type:"disabled"}
-  // yields 0).
-  { id: "glm-5.3-flash", name: "GLM 5.3 Flash", contextWindow: 200_000, maxOutputTokens: 128_000, reasoning: true },
+  // Absent from ZCode's bundled v1 catalog snapshot, which predates it, so
+  // these specs come from Z.AI's model page instead:
+  // https://docs.z.ai/guides/vlm/glm-5.3-flash — "Context Length: 1M",
+  // "Maximum Output Tokens: 128K", and "text parameters are consistent with
+  // GLM-5.3, with support for a 1M-token context window". Observed gateway
+  // max_tokens ceiling is 131_072, above the 128_000 pinned here.
+  //
+  // Natively multimodal (video / image / text / file input), unlike glm-5.3
+  // which is text-only — hence its docs live under /guides/vlm/. Reasoning is
+  // always on: the docs state thinking.type accepts only "enabled". Measured
+  // 183 chars of thinking by default, and 0 under effort:"low" — note that
+  // sending thinking:{type:"disabled"} also measured 0 rather than erroring,
+  // which the docs say is unsupported; do not rely on it.
+  { id: "glm-5.3-flash", name: "GLM 5.3 Flash", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoning: true },
   // Gateway hard-rejects max_tokens above 32_768 for this model:
   // `400 [1210] 限制数值范围[1,32768]`, where every sibling allows 131_072. The
   // previous 128_000 here was never sent upstream (nothing consumed this field

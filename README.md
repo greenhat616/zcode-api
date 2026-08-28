@@ -364,7 +364,7 @@ The proxy lists these models on `GET /v1/models` (pinned to the GLM coding-plan 
 | `glm-5.1` | 200K | 64K |
 | `glm-5.2` | 1M | 128K |
 | `glm-5.3` | 1M | 128K |
-| `glm-5.3-flash` | 200K | 128K |
+| `glm-5.3-flash` | 1M | 128K |
 | `glm-4.6v` | 131K | 32K |
 | `glm-4.1v-thinking-flash` | 65K | 32K |
 | `glm-4-flash-250414` | 131K | 16K |
