@@ -48,6 +48,13 @@ export function translateRequestAnthropicToOpenAI(req: AnthropicMessagesRequest)
     result.thinking = req.thinking;
   }
 
+  // GLM-5.3+ Anthropic clients set reasoning effort via `output_config.effort`
+  // (the Anthropic upstream ignores `reasoning_effort`); the OpenAI-format
+  // upstream on start-plan reads `reasoning_effort` instead, so carry it over.
+  if (req.output_config?.effort) {
+    result.reasoning_effort = req.output_config.effort as OpenAIChatRequest["reasoning_effort"];
+  }
+
   if (req.tools?.length) {
     result.tools = req.tools.map((t) => ({
       type: "function" as const,
