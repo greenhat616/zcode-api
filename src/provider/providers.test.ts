@@ -66,13 +66,15 @@ describe("models", () => {
     }
   });
 
-  it("glm-5.2 and glm-5.3 have 1M context", () => {
-    const glm52 = MODELS.find((m) => m.id === "glm-5.2");
-    expect(glm52).toBeDefined();
-    expect(glm52!.contextWindow).toBe(1_000_000);
-    const glm53 = MODELS.find((m) => m.id === "glm-5.3");
-    expect(glm53).toBeDefined();
-    expect(glm53!.contextWindow).toBe(1_000_000);
+  // glm-5.3-flash is documented at 1M as well — Z.AI's model page states
+  // "Context Length: 1M" and that its text parameters match glm-5.3.
+  // https://docs.z.ai/guides/vlm/glm-5.3-flash
+  it("glm-5.2, glm-5.3 and glm-5.3-flash have 1M context", () => {
+    for (const id of ["glm-5.2", "glm-5.3", "glm-5.3-flash"]) {
+      const m = MODELS.find((x) => x.id === id);
+      expect(m, id).toBeDefined();
+      expect(m!.contextWindow, id).toBe(1_000_000);
+    }
   });
 
   it("includes key GLM models", () => {
