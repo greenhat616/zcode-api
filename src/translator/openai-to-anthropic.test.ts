@@ -431,8 +431,10 @@ describe("translateRequestOpenAIToAnthropic", () => {
   });
 
   it("does not enable Anthropic thinking by default for non-reasoning GLM models", () => {
+    // glm-4.6v is a vision model with no `reasoning` flag in the catalog
+    // (unlike glm-4.5, which the catalog now marks reasoning:true).
     const req: OpenAIChatRequest = {
-      model: "glm-4.5",
+      model: "glm-4.6v",
       messages: [{ role: "user", content: "Hi" }],
     };
 

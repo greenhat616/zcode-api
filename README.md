@@ -354,18 +354,28 @@ The proxy lists these models on `GET /v1/models` (pinned to the GLM coding-plan 
 
 | Model | Context | Max Output |
 |-------|---------|------------|
-| `glm-4.5-air` | 200K | 128K |
-| `glm-4.6` | 200K | 128K |
-| `glm-4.6v` | 200K | 128K |
-| `glm-4.7` | 200K | 128K |
-| `glm-5` | 200K | 128K |
-| `glm-5-turbo` | 200K | 128K |
-| `glm-5v-turbo` | 200K | 128K |
-| `glm-5.1` | 200K | 128K |
+| `glm-4.5` | 131K | 98K |
+| `glm-4.5-air` | 131K | 98K |
+| `glm-4.6` | 200K | 131K |
+| `glm-4.7` | 200K | 131K |
+| `glm-4.7-flash` | 200K | 131K |
+| `glm-5` | 200K | 64K |
+| `glm-5-turbo` | 200K | 64K |
+| `glm-5.1` | 200K | 64K |
 | `glm-5.2` | 1M | 128K |
 | `glm-5.3` | 1M | 128K |
+| `glm-5.3-flash` | 200K | 128K |
+| `glm-4.6v` | 131K | 32K |
+| `glm-4.1v-thinking-flash` | 65K | 32K |
+| `glm-4-flash-250414` | 131K | 16K |
+| `glm-4v-flash` | 16K | 1K |
 
 Requests for models not in this list are still forwarded upstream — the listing is informational, not a gate.
+
+Notes:
+- `glm-4.5-air` is answered server-side as `glm-4.7`; `glm-5`, `glm-5.1`, and `glm-5.2` are all answered server-side as `glm-5.3` (silent upstream aliasing). Request whichever id you like — the specs above are pinned per-id, not per-backend.
+- `glm-4.1v-thinking-flash`, `glm-4-flash-250414`, and `glm-4v-flash` are reachable on the coding-plan credential but are not offered in the ZCode desktop client's own model picker.
+- `glm-5v-turbo` is intentionally not listed: it was rejected with `429 [1311] your current subscription plan does not yet include access` on the coding-plan tier it was tested against. That is a per-subscription entitlement gate rather than a retired model, so a higher tier may well have it — the listing is informational and requests for it are still forwarded upstream regardless.
 
 ## License
 
