@@ -15,6 +15,7 @@ import type {
   AnthropicContentBlock,
   AnthropicUsage,
 } from "./types.js";
+import { isGlm53Model, GLM53_DISABLED_REPLACEMENT_EFFORT } from "../provider/reasoning.js";
 
 /** Translate an Anthropic messages request into an OpenAI chat request. */
 export function translateRequestAnthropicToOpenAI(req: AnthropicMessagesRequest): OpenAIChatRequest {
@@ -53,6 +54,16 @@ export function translateRequestAnthropicToOpenAI(req: AnthropicMessagesRequest)
   // upstream on start-plan reads `reasoning_effort` instead, so carry it over.
   if (req.output_config?.effort) {
     result.reasoning_effort = req.output_config.effort as OpenAIChatRequest["reasoning_effort"];
+  }
+
+  // This translator feeds the OpenAI-protocol upstream, which is precisely
+  // where Z.AI documents `thinking:{type:"disabled"}` on a GLM-5.3 model as
+  // fatal ("otherwise the request will fail") and prescribes enabled + low
+  // effort instead. Rewrite rather than forward. An effort the caller set
+  // explicitly via output_config wins over the substitute.
+  if (isGlm53Model(req.model) && req.thinking?.type === "disabled") {
+    result.thinking = { type: "enabled" };
+    result.reasoning_effort ??= GLM53_DISABLED_REPLACEMENT_EFFORT;
   }
 
   if (req.tools?.length) {

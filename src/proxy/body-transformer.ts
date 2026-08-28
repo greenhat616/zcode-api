@@ -16,11 +16,21 @@
  *      is safe and matches ZCode's `applyCacheControl: true` default.
  *   4. Anthropic format + `ctx.userId` set → inject `metadata: { user_id }`.
  *      Mirrors `user_id: B.metadata.userId` at bundle offset ~4760586.
+ *   5. GLM-5.3 family + `thinking: { type: "disabled" }` → rewrite to the
+ *      enabled/low-effort form Z.AI documents, in whichever shape the
+ *      upstream expects. Only reachable on the two routes that forward a
+ *      client body verbatim; the translators handle the rest.
  *
  * @see _reverse/NOTEPAD.md "How Credential is Used for LLM Calls"
  */
 import type { Format } from "../translator/types.js";
 import { buildStartPlanSystem } from "./system-prompt.js";
+import {
+  isGlm53Model,
+  buildGlm53Reasoning,
+  fitGlm53Budget,
+  GLM53_DISABLED_REPLACEMENT_EFFORT,
+} from "../provider/reasoning.js";
 
 interface TransformContext {
   format: Format;
@@ -52,12 +62,14 @@ export function transformRequestBody(body: string | undefined, ctx: TransformCon
       modified = applyStartPlanOpenAISystem(parsed as Record<string, unknown>) || modified;
     }
     modified = applyStreamOptionsIncludeUsage(parsed as Record<string, unknown>) || modified;
+    modified = applyGlm53OpenAIThinkingCompat(parsed as Record<string, unknown>) || modified;
   }
   if (ctx.format === "anthropic") {
     const obj = parsed as Record<string, unknown>;
     if (ctx.startPlan) {
       modified = applyStartPlanSystem(obj) || modified;
     }
+    modified = applyGlm53AnthropicThinkingCompat(obj) || modified;
     modified = applyAnthropicCacheControl(obj) || modified;
     if (ctx.userId) {
       modified = applyAnthropicUserId(obj, ctx.userId) || modified;
@@ -82,6 +94,56 @@ function applyStreamOptionsIncludeUsage(body: Record<string, unknown>): boolean 
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
+}
+
+/**
+ * Both of the transforms below exist because a client body can reach an
+ * upstream without passing through a translator at all: an Anthropic client
+ * on coding-plan and an OpenAI client on start-plan are each forwarded
+ * verbatim. The translators already rewrite `thinking:{type:"disabled"}` for
+ * GLM-5.3 models; these close the two passthrough gaps so the rewrite holds
+ * on every route rather than only the translated ones.
+ *
+ * Z.AI documents `"disabled"` as unsupported for this family — `thinking.type`
+ * accepts only `"enabled"` — and prescribes enabled + `low` effort instead.
+ * @see https://docs.z.ai/guides/llm/glm-5.3 (Migration Notice)
+ */
+function glm53Model(body: Record<string, unknown>): boolean {
+  return isGlm53Model(typeof body.model === "string" ? body.model : undefined);
+}
+
+function thinkingIsDisabled(body: Record<string, unknown>): boolean {
+  return isPlainObject(body.thinking) && body.thinking.type === "disabled";
+}
+
+/** OpenAI-format passthrough (start-plan): `disabled` -> enabled + reasoning_effort. */
+function applyGlm53OpenAIThinkingCompat(body: Record<string, unknown>): boolean {
+  if (!glm53Model(body) || !thinkingIsDisabled(body)) return false;
+  body.thinking = { type: "enabled" };
+  if (body.reasoning_effort === undefined) {
+    body.reasoning_effort = GLM53_DISABLED_REPLACEMENT_EFFORT;
+  }
+  return true;
+}
+
+/**
+ * Anthropic-format passthrough (coding-plan): `disabled` -> enabled with the
+ * effort's paired budget. The budget is fitted to `max_tokens` so it cannot
+ * consume the whole output allowance; when no usable budget survives, the
+ * bare `{type:"enabled"}` still beats sending an unsupported `"disabled"`.
+ * An `output_config` the client already set is left alone.
+ */
+function applyGlm53AnthropicThinkingCompat(body: Record<string, unknown>): boolean {
+  if (!glm53Model(body) || !thinkingIsDisabled(body)) return false;
+  const legal = buildGlm53Reasoning(GLM53_DISABLED_REPLACEMENT_EFFORT);
+  const budget = fitGlm53Budget(legal.thinking.budget_tokens, body.max_tokens);
+  body.thinking = budget === undefined
+    ? { type: "enabled" }
+    : { type: "enabled", budget_tokens: budget };
+  if (!isPlainObject(body.output_config)) {
+    body.output_config = legal.output_config;
+  }
+  return true;
 }
 
 /**

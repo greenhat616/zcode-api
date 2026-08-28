@@ -631,9 +631,43 @@ describe("translateRequestOpenAIToAnthropic", () => {
       expect(result.max_tokens).toBe(4096);
     });
 
-    it("glm-5.3: explicit thinking:{type:'disabled'} is forwarded as-is, not overridden to an effort level", () => {
+    // Z.AI documents thinking as impossible to disable for this family, and
+    // prescribes enabled + low effort as the migration ("otherwise the
+    // request will fail"). Never forward "disabled" for a GLM-5.3 model.
+    // https://docs.z.ai/guides/llm/glm-5.3
+    it("glm-5.3: thinking:{type:'disabled'} is rewritten to enabled + low effort, never forwarded", () => {
       const req = {
         model: "glm-5.3",
+        max_tokens: 40_000,
+        messages: [{ role: "user", content: "Hi" }],
+        thinking: { type: "disabled" },
+      } as OpenAIChatRequest;
+
+      const result = translateRequestOpenAIToAnthropic(req);
+
+      expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 8_000 });
+      expect(result.output_config).toEqual({ effort: "low" });
+    });
+
+    it("glm-5.3-flash: thinking:{type:'disabled'} is rewritten the same way", () => {
+      const req = {
+        model: "glm-5.3-flash",
+        max_tokens: 40_000,
+        messages: [{ role: "user", content: "Hi" }],
+        thinking: { type: "disabled" },
+      } as OpenAIChatRequest;
+
+      const result = translateRequestOpenAIToAnthropic(req);
+
+      expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 8_000 });
+      expect(result.output_config).toEqual({ effort: "low" });
+    });
+
+    // The rewrite is scoped to GLM-5.3: glm-4.7 genuinely supports disabling,
+    // and live probing measured zero thinking when it is sent.
+    it("glm-4.7: thinking:{type:'disabled'} is still forwarded untouched", () => {
+      const req = {
+        model: "glm-4.7",
         messages: [{ role: "user", content: "Hi" }],
         thinking: { type: "disabled" },
       } as OpenAIChatRequest;

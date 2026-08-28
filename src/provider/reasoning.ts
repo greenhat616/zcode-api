@@ -53,6 +53,26 @@ export const GLM53_MIN_THINKING_BUDGET = 1_024;
 export const GLM53_ANSWER_RESERVE = 1_024;
 
 /**
+ * Effort level that replaces `thinking:{type:"disabled"}` for this family.
+ *
+ * Z.AI documents thinking as impossible to turn off here — `thinking.type`
+ * accepts only `"enabled"` — and prescribes an explicit migration: switch to
+ * `enabled` and set the effort to `low`, "otherwise the request will fail".
+ * @see https://docs.z.ai/guides/llm/glm-5.3 (Migration Notice)
+ * @see https://docs.z.ai/guides/vlm/glm-5.3-flash
+ *
+ * Live probing against the Anthropic gateway did *not* reproduce that
+ * failure (a disabled request returned 200, with 54 chars of thinking for
+ * glm-5.3 and none for glm-5.3-flash), so this rewrite is not about a fault
+ * we have observed. It is about not sending a shape the vendor documents as
+ * unsupported: the OpenAI-protocol upstream used on start-plan is exactly
+ * where that warning applies, and a gateway is free to start enforcing it.
+ * `low` is also the closest honest approximation of "off" — it measured zero
+ * thinking on glm-5.3-flash and the family minimum on glm-5.3.
+ */
+export const GLM53_DISABLED_REPLACEMENT_EFFORT: Glm53Effort = "low";
+
+/**
  * Match the GLM-5.3 model family, including `glm-5.3-flash`, case-insensitively
  * (the upstream also accepts `GLM-5.3`). Deliberately excludes `glm-5`,
  * `glm-5.1`, and `glm-5.2` — the negative lookahead rejects a trailing digit
