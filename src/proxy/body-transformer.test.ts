@@ -345,3 +345,105 @@ describe("transformRequestBody — metadata.user_id (Anthropic)", () => {
     expect(parsed.metadata).toBeUndefined();
   });
 });
+
+
+// A client body reaches the upstream verbatim on two routes — an Anthropic
+// client on coding-plan, and an OpenAI client on start-plan — so the
+// translators' GLM-5.3 rewrite would not cover them. Z.AI documents
+// thinking:{type:"disabled"} as unsupported for this family and prescribes
+// enabled + low effort. https://docs.z.ai/guides/llm/glm-5.3
+describe("transformRequestBody — GLM-5.3 disabled-thinking rewrite", () => {
+  it("Anthropic passthrough: rewrites disabled to enabled with the low-effort budget", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      max_tokens: 40_000,
+      thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled", budget_tokens: 8_000 });
+    expect(parsed.output_config).toEqual({ effort: "low" });
+  });
+
+  it("Anthropic passthrough: fits the budget to a small max_tokens", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      max_tokens: 4_096,
+      thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled", budget_tokens: 3_072 });
+  });
+
+  it("Anthropic passthrough: drops the budget rather than starving the answer", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      max_tokens: 1_500,
+      thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled" });
+  });
+
+  it("Anthropic passthrough: leaves an output_config the client already set", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      max_tokens: 40_000,
+      thinking: { type: "disabled" },
+      output_config: { effort: "max" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.output_config).toEqual({ effort: "max" });
+  });
+
+  it("OpenAI passthrough: rewrites disabled to enabled + reasoning_effort", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3-flash",
+      thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "openai", startPlan: true }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled" });
+    expect(parsed.reasoning_effort).toBe("low");
+  });
+
+  it("OpenAI passthrough: keeps a reasoning_effort the client already set", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      thinking: { type: "disabled" },
+      reasoning_effort: "max",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "openai", startPlan: true }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled" });
+    expect(parsed.reasoning_effort).toBe("max");
+  });
+
+  it("leaves non-GLM-5.3 models alone — glm-4.7 genuinely supports disabling", () => {
+    const body = JSON.stringify({
+      model: "glm-4.7",
+      max_tokens: 40_000,
+      thinking: { type: "disabled" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.thinking).toEqual({ type: "disabled" });
+    expect(parsed.output_config).toBeUndefined();
+  });
+
+  it("leaves an already-enabled GLM-5.3 body untouched", () => {
+    const body = JSON.stringify({
+      model: "glm-5.3",
+      max_tokens: 40_000,
+      thinking: { type: "enabled", budget_tokens: 32_000 },
+      output_config: { effort: "max" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+    const parsed = JSON.parse(transformRequestBody(body, { format: "anthropic" }) as string);
+    expect(parsed.thinking).toEqual({ type: "enabled", budget_tokens: 32_000 });
+    expect(parsed.output_config).toEqual({ effort: "max" });
+  });
+});

@@ -21,6 +21,7 @@ import {
   normalizeGlm53Effort,
   buildGlm53Reasoning,
   fitGlm53Budget,
+  GLM53_DISABLED_REPLACEMENT_EFFORT,
 } from "../provider/reasoning.js";
 
 /** Default max_tokens if the OpenAI request doesn't specify one. */
@@ -125,23 +126,24 @@ function resolveDefaultMaxTokens(model: string): number {
  * live testing), so routing it through the effort channel is the closer
  * approximation across the whole family.
  *
- * An explicit `req.thinking:{type:"disabled"}` is still forwarded as-is
- * (rather than overridden to an effort level) since it does work for
- * glm-5.3-flash, and is the closest available signal for plain glm-5.3.
- * An explicit `req.thinking` budget is respected over the effort-level
- * default budget, but `output_config.effort` is still attached — without it
- * the upstream runs at its own near-zero default regardless of budget.
+ * An explicit `req.thinking:{type:"disabled"}` is rewritten to the effort
+ * level named by `GLM53_DISABLED_REPLACEMENT_EFFORT` rather than forwarded:
+ * Z.AI documents `"disabled"` as unsupported for this family and prescribes
+ * exactly that migration. An explicit `req.thinking` budget is respected over
+ * the effort-level default budget, but `output_config.effort` is still
+ * attached — without it the upstream runs at its own near-zero default
+ * regardless of budget.
  */
 function translateGlm53Reasoning(
   req: OpenAIChatRequest,
   maxTokens: number,
 ): { thinking: AnthropicThinkingConfig; output_config?: AnthropicOutputConfig } {
   const explicit = req.thinking;
-  if (explicit && typeof explicit === "object" && explicit.type === "disabled") {
-    return { thinking: { type: "disabled" } };
-  }
+  const disabled = explicit !== undefined && typeof explicit === "object" && explicit.type === "disabled";
 
-  const effort = normalizeGlm53Effort(req.reasoning_effort);
+  const effort = disabled
+    ? GLM53_DISABLED_REPLACEMENT_EFFORT
+    : normalizeGlm53Effort(req.reasoning_effort);
   const base = buildGlm53Reasoning(effort);
 
   let budget: number = base.thinking.budget_tokens;

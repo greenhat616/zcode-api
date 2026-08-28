@@ -46,3 +46,51 @@ describe("translateRequestAnthropicToOpenAI: output_config.effort", () => {
     expect(result.reasoning_effort).toBeUndefined();
   });
 });
+
+
+// This translator feeds the OpenAI-protocol upstream on start-plan — the exact
+// path where Z.AI says a disabled GLM-5.3 request "will fail".
+describe("translateRequestAnthropicToOpenAI — GLM-5.3 disabled thinking", () => {
+  it("rewrites disabled to enabled + reasoning_effort low", () => {
+    const req: AnthropicMessagesRequest = {
+      model: "glm-5.3",
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 100,
+      thinking: { type: "disabled" },
+    };
+
+    const result = translateRequestAnthropicToOpenAI(req);
+
+    expect(result.thinking).toEqual({ type: "enabled" });
+    expect(result.reasoning_effort).toBe("low");
+  });
+
+  it("lets an explicit output_config.effort win over the substitute", () => {
+    const req: AnthropicMessagesRequest = {
+      model: "glm-5.3",
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 100,
+      thinking: { type: "disabled" },
+      output_config: { effort: "high" },
+    };
+
+    const result = translateRequestAnthropicToOpenAI(req);
+
+    expect(result.thinking).toEqual({ type: "enabled" });
+    expect(result.reasoning_effort).toBe("high");
+  });
+
+  it("leaves glm-4.7 disabled thinking untouched", () => {
+    const req: AnthropicMessagesRequest = {
+      model: "glm-4.7",
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 100,
+      thinking: { type: "disabled" },
+    };
+
+    const result = translateRequestAnthropicToOpenAI(req);
+
+    expect(result.thinking).toEqual({ type: "disabled" });
+    expect(result.reasoning_effort).toBeUndefined();
+  });
+});
